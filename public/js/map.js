@@ -98,7 +98,7 @@ $(document).ready(function(){
 		var text = $("#search_input").val();
 		var tab = $('.nav-pills .active').attr("value");
 
-		console.log("clicked", text)
+		// Get all movie locations by title then geocode their addresses to place on map
 		getLocations(text, tab, false);
 	});
 
@@ -108,11 +108,10 @@ $(document).ready(function(){
     minLength: 1, // Minimum length of input for autocomplete
     source: function(request, response) {
     	var tab = $('.nav-pills .active').attr("value");
-    	var url = formatMoviesUrl(tab, request.term, true);
+    	var url = formatMoviesUrl(request.term,tab, true);
 
       // Make call to server to get autocomplete results
       $.getJSON(url, function(data, status, xhr){
-      	console.log("data", data);
       	var mappedResults = data.map(function(d){
         // Reformat the results to match the accepted signature of JQuery Autocomplete's Source
         d.label = d.director || d.title;
@@ -131,8 +130,7 @@ $(document).ready(function(){
     		};
     	};
      	// Get all movie locations by title then geocode their addresses to place on map
-     	getLocations(ui.item.title, tab, true);
-     	//getMovieLocations(ui.item.title, geocodeAddresses);
+     	getLocations(ui.item.value, tab, false);
    	}
  	});
 
@@ -151,17 +149,17 @@ $(document).ready(function(){
 
 	/**
  	 * Formats the url given the current tab and query.
- 	 * param {string} tab - Current tab the search is under (ie. Title or Director)
  	 * param {string} query - Text input
+ 	 * param {string} tab - Current tab the search is under (ie. Title or Director)
  	 * param {boolean} autocomplete - True if want autocomplete results, false otherwise
  	 * return {string} formatted url
  	 */
-	var formatMoviesUrl = function(tab, query, autocomplete){
+	var formatMoviesUrl = function(query, tab, autocomplete){
 		return "/movies?tab=" + tab + "&autocomplete=" + autocomplete +  "&q=" + query;
 	};
 
 	var getMovieLocations = function(query, tab, autocomplete, callback){
-		var url = formatMoviesUrl(tab, query, autocomplete, callback)
+		var url = formatMoviesUrl(query, tab, autocomplete, callback);
 		$.getJSON(url, function(data){
 			callback(data);
 		});

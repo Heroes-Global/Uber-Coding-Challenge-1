@@ -8,10 +8,9 @@ module.exports = function (app, env) {
 	});
 
 	app.get('/movies', function(req, res){
-		var resultUrl = setResultUrl(req.query.tab, req.query.q, req.query.autocomplete);
-		console.log("res", resultUrl);
+		var url = setResultUrl(req.query.q, req.query.tab, req.query.autocomplete=='true');
 		// Send request to online dataset
-		getJSON(resultUrl, function(data){
+		getJSON(url, function(data){
 			res.json(data);
 		});
 	});
@@ -20,7 +19,7 @@ module.exports = function (app, env) {
 
 	// Gets JSON response from request
 	var getJSON = function(url, callback){
-		request(resultUrl, function (error, response, body) {
+		request(url, function (error, response, body) {
 			if(!error && response.statusCode == 200){
 				callback(JSON.parse(body));
 			}else{
@@ -31,12 +30,13 @@ module.exports = function (app, env) {
 
 	/**
 	 * Format the url based on the query tab
-	 * param {string} tab - Query tab (i.e. director or title)
 	 * param {string} query - query
+	 * param {string} tab - Query tab (i.e. director or title)
 	 * param {boolean} isAutoComplete - Changes result url based on if querying only for autocomplete results
 	 * return {string} resultUrl - resulting url to be queried
 	 */
-	var setResultUrl = function(tab, query, isAutoComplete){
+	var setResultUrl = function(query, tab, isAutoComplete){
+		var resultUrl = "";
 		if(tab == "title"){
 			resultUrl = isAutoComplete ? formatAutoCompleteTitleUrl(query) : formatTitleUrl(query);
 		}else{
@@ -60,14 +60,14 @@ module.exports = function (app, env) {
 	};
 
 	var formatTitleUrl = function(query){
-		var startUrl = "https://data.sfgov.org/resource/wwmu-gmzc.json?$select=*&$where=LOWER(title)=LOWER('";
+		var startUrl = "?$select=*&$where=LOWER(title)=LOWER('";
 		var endUrl = "')";
-		return startUrl + query + endUrl;
+		return dataSetUrl + startUrl + query + endUrl;
 	};
 
 	var formatDirectorUrl = function(query){
-		var startUrl = "https://data.sfgov.org/resource/wwmu-gmzc.json?$select=*&$where=LOWER(director)=LOWER('";
+		var startUrl = "?$select=*&$where=LOWER(director)=LOWER('";
 		var endUrl = "')";
-		return startUrl + query + endUrl;
+		return dataSetUrl + startUrl + query + endUrl;
 	};
 };
