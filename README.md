@@ -1,8 +1,13 @@
-# Uber Coding Challenge - San Francisco Food Trucks
+# Uber Coding Challenge - San Francisco Movies
 
 ### Challenge Link: [prompt]
 See it live here: [app]
 
+Things to Note:
+
+1. First pick a Movie Title or Director Name that you want to search for!
+2. Start typing - you can either select something from the autocomplete suggestions or finish typing
+3. Hit search (or alternatively if you click on a suggestion, it will search automatically!)
 
 Back-end
 --------
@@ -28,6 +33,8 @@ The bulk off the application comes from doing manipulations with Google maps. In
 
 The main challenges of the front-end was figuring out how to approach autocomplete. I chose JQuery's autocomplete widget as it had all the basic functionality that I wanted: populating suggestions under the search box, but mainly because it already contained a 'request delay' that prevents too many requests from being sent. I.e. if it is set to 300ms, then it waits 300ms after the final keystroke to send the request to the server, or if another key has been pressed within that time, it tries to wait another 300ms.
 
+Another challenge was dealing with the rate limit when querying for movie locations using Google Maps. Because of this 'bug' when querying for movies that have lots of locations, it 'sometimes' does not populate the map with all locations. If there was more time to work, I would definitely address this.
+
 To get the results, I used the SODA API's SoQL feature to query the database. It borrows 'LIKE %s' from SQL, and I then build off of that by grouping duplicate movie titles, and limiting the resulting suggestions. There are two features to the autcomplete and search:
 
 1. Title - This feature searches for movies by their title. It uses one query for autocomplete (we just need movie names to fill out the suggestions box), and it uses another query to actually get all the movie locations with the name that was chosen (these locations will get placed on the map).
@@ -37,6 +44,7 @@ TODO
 --------
 * Put dataset in to Database, have a nightly script that gets new data from the dataset
 * Testing
+* Fix the rate limit bug when placing movie locations on the Google Map.
 * If there was more time I would really love to add a feature that shows what other people have recently searched for (movies, directors, etc). I would use Socket.io to do this, and just keep a small list (3-5 searches) that get displayed to everyone using the app, and gets updated in real-time whenever somebody makes a new search.
 
 ### Installation
