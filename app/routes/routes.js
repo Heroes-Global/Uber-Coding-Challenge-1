@@ -53,8 +53,8 @@ module.exports = function (app, env) {
 	};
 
 	var formatAutoCompleteDirectorUrl = function(query){
-		var startUrl = "?$select=title,director&$where=LOWER(director) like LOWER('";
-		var endUrl = "%25')&$limit=10&$group=title,director";
+		var startUrl = "?$select=director&$where=LOWER(director) like LOWER('";
+		var endUrl = "%25')&$limit=10&$group=director";
 		var resultUrl = dataSetUrl + startUrl + query + endUrl;
 		return resultUrl;
 	};
