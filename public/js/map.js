@@ -22,28 +22,10 @@ $(document).ready(function(){
 			zoom: 13
 		});
 
-		// Geocoder
-		var geocoder = new google.maps.Geocoder();
-
-		/** Private Functions **/
-		var formatDataToMovieContent = function(movie){
-			var contentString = '<div id="content">'+
-			'<h3>' + movie.title + '</h3>'+
-			'<div id="bodyContent">'+
-			'<div>Location: ' + movie.locations + '</div>' + 
-			'<div>Directed by: ' + movie.director + '</div>' + 
-			'<div>Written by: ' + movie.writer + '</div>' + 
-			'</div>'+
-			'</div>';
-			return contentString;
-		};
-
 		var addInfoWindow = function(marker, data){
-			var contentString = formatDataToMovieContent(data);
-
 			// Add a listener to the marker to open up an info window
 			marker.addListener('click', function() {
-				infoWindow.setContent(contentString);
+				infoWindow.setContent(data);
 				infoWindow.open(map, marker);
 			});
 		};
@@ -63,105 +45,74 @@ $(document).ready(function(){
 			addInfoWindow(marker, data);
 		};
 
+		// Clears all markers from map
 		module.clearMarkers = function(){
+			// Must manuall set references to null to avoid memory leaks
 			for (var i = 0; i < markers.length; i++) {
 				markers[i].setMap(null);
 			}
 			markers = [];
 		};
 
-		module.geocodeAddress = function(movie){
-			// Clear the map
-	  	Map.clearMarkers();
-
-			// Modifiy the passed in address so that results are more likely to appear in San Francisco
-			var modifiedAddress = movie.locations + 'San Francisco, CA';
-			// Geocode the address
-			geocoder.geocode({'address': modifiedAddress}, function(results, status) {
-				if(status === google.maps.GeocoderStatus.OK){
-					// Add all results to the map
-	  			for(var i=0; i<results.length; i++){
-	  				// Add marker to map
-	  				Map.addMarker(results[i].geometry.location, movie);
-	  			}		
-	  		}else{
-					console.log('Geocode was not successful for the following reason: ' + status);
-				}
-			});
-		};
-
 		return module;
 	}(startingLocation));
-	/** Map Module **/
-
-	$("#search_button").click(function(){
-		var text = $("#search_input").val();
-		var tab = $('.nav-pills .active').attr("value");
-
-		// Get all movie locations by title then geocode their addresses to place on map
-		getLocations(text, tab, false);
-	});
 
 	/** Autocomplete **/
 	$("#search_input").autocomplete({
 		delay: 300, 	// Delay between keystrokes and fetch request
-    minLength: 1, // Minimum length of input for autocomplete
-    source: function(request, response) {
-    	var tab = $('.nav-pills .active').attr("value");
-    	var url = formatMoviesUrl(request.term,tab, true);
+		minLength: 1, // Minimum length of input for autocomplete
+		source: function(request, response) {
+			var tab = $('.nav-pills .active').attr("value");
 
-      // Make call to server to get autocomplete results
-      $.getJSON(url, function(data, status, xhr){
-      	var mappedResults = data.map(function(d){
-        // Reformat the results to match the accepted signature of JQuery Autocomplete's Source
-        d.label = d.director || d.title;
-        d.value = d.director || d.title;
-        return d;
-      });
-      	response(mappedResults);
-      });
-    },
-    select: function(event, ui) {
-    	var tab = $('.nav-pills .active').attr("value");
-    	// Geocodes addresses of movies and then places it on map
-    	var geocodeAddresses = function(data){
-    		for (var i=0; i<data.length; i++){
-    			Map.geocodeAddress(data[i]);
-    		};
-    	};
-     	// Get all movie locations by title then geocode their addresses to place on map
-     	getLocations(ui.item.value, tab, false);
-   	}
- 	});
+			// Make call to server to get autocomplete results
+			$.getJSON('/autocomplete', {q:request.term, tab: tab}, function(data, status, xhr){
+
+				// Reformat the results to match the accepted signature of JQuery Autocomplete's Source
+				var mappedResults = data.map(function(d){
+					d.label = (tab == "title") ? d.title : (d.director || d.name);
+					d.value = d.label;
+					return d;
+				});
+
+				// Load jquery ui results
+				response(mappedResults);
+			});
+		},
+		select: function(event, ui) {
+			var tab = $('.nav-pills .active').attr("value");
+
+			// Clear all map markers
+			Map.clearMarkers();
+			// Get all movie locations by title then geocode their addresses to place on map
+			getLocations(ui.item._id, tab);
+		}
+	});
 
 	/** Helpers **/
 
-	var getLocations = function(query, tab, autocomplete){
-		// Geocodes addresses of movies and then places it on map
-     var geocodeAddresses = function(data){
-     	for (var i=0; i<data.length; i++){
-     		Map.geocodeAddress(data[i]);
-     	};
-     };
-     // Get all movie locations by title then geocode their addresses to place on map
-     getMovieLocations(query, tab, autocomplete, geocodeAddresses);
-	};
-
 	/**
- 	 * Formats the url given the current tab and query.
- 	 * param {string} query - Text input
- 	 * param {string} tab - Current tab the search is under (ie. Title or Director)
- 	 * param {boolean} autocomplete - True if want autocomplete results, false otherwise
- 	 * return {string} formatted url
- 	 */
-	var formatMoviesUrl = function(query, tab, autocomplete){
-		return "/movies?tab=" + tab + "&autocomplete=" + autocomplete +  "&q=" + query;
-	};
-
-	var getMovieLocations = function(query, tab, autocomplete, callback){
-		var url = formatMoviesUrl(query, tab, autocomplete, callback);
-		$.getJSON(url, function(data){
-			callback(data);
+		* Searches for all movie locations given an movie id, or director id
+		* param {string} id - Movie or direcotr id
+		* param {string} tab - Current tab the search is under (ie. Title or Director)
+		*/
+	var getLocations = function(id, tab) {
+		$.getJSON('/search', {id: id, tab: tab}, function(data){
+			console.log("Dataaa", data);
+			if(data.length == 0){
+				// Show help information if no results
+				$(".help_container").css('visibility', 'visible');
+			}else{
+				// Hide help information
+				$(".help_container").css('visibility', 'hidden');
+				// Add all the movies location top the map
+				data.forEach(function(d){
+					var point = {
+						lat: d.latitude,
+						lng: d.longitude
+					};
+					Map.addMarker(point, d.html);
+				});
+			}
 		});
 	};
 });

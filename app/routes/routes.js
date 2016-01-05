@@ -1,73 +1,95 @@
-var request = require('request');
+var async = require('async');
+var Movie = require('../models/movie');
+var MovieLocations = require('../models/movieLocation');
+var Director = require('../models/director');
 
-module.exports = function (app, env) {
+module.exports = function (app, redisClient, env) {
 	var dataSetUrl = env.SF_DATASET_URL || "https://data.sfgov.org/resource/wwmu-gmzc.json";
 
 	app.get('/', function(req, res){
 		res.render('index');
 	});
 
-	app.get('/movies', function(req, res){
-		var url = setResultUrl(req.query.q, req.query.tab, req.query.autocomplete=='true');
-		// Send request to online dataset
-		getJSON(url, function(data){
-			res.json(data);
+	app.get('/autocomplete', function(req, res){
+		var term = req.query.q.toLowerCase();
+		var setName = env.REDIS_AUTOCOMPLETE_SET + req.query.tab + ":" + term;
+		var query = "^" + term;
+		var numResults = 10;
+
+		// Check if query is in redis
+		redisClient.zrevrange(setName, 0, numResults-1, function(err, response){
+			if(err){
+				console.log("Error with query: ", req.query.q);
+				console.log("Error: ", err);
+				throw err;
+			}else if(response.length > 0){
+				var result = response.map(function(d){ return JSON.parse(d); });
+				res.json(result);
+				return;
+			}else{
+				// Case insensitive regex
+				var reg = new RegExp(query, 'i');
+
+				// Search DB for movie or director given the query tab
+				if(req.query.tab == "title"){
+					Movie
+						.find({title: reg})
+						.limit(numResults)
+						.exec(function (err, movies) {
+							res.json(movies);
+						});
+				}else{
+					Director
+						.find({name: reg})
+						.limit(numResults)
+						.exec(function (err, directors) {
+							res.json(directors);
+						});
+				}
+			}
 		});
 	});
 
-	/** Helpers **/
-
-	// Gets JSON response from request
-	var getJSON = function(url, callback){
-		request(url, function (error, response, body) {
-			if(!error && response.statusCode == 200){
-				callback(JSON.parse(body));
+	app.get('/search', function(req, res){
+		var id = req.query.id;
+		var query = (req.query.tab == "title") ? {_id: id} : {director: id};
+		Movie
+		.findOne(query)
+		.populate('director')
+		.exec(function(err, movie){
+			if(!movie){
+				res.json([]);
 			}else{
-				console.log("Got an error: ", error, ", status code: ", response.statusCode);
+				MovieLocations.find({ movie_id: movie._id }, function(err, results){
+					// Formats movie data to be rendered in mapinfo template
+					var formatResult = function(d, callback) {
+						d = d.toObject();
+						var context = {
+							title: movie.title,
+							picture: movie.picture,
+							location: d.location,
+							release_year: movie.release_year,
+							director: movie.director.name,
+							layout: false
+						};
+
+						// Render template with formatted data
+						app.render('templates/mapinfo', context, function(err, html){
+							// Store rendered HTML and lat,lng points
+							var output = {
+								latitude: parseFloat(d.latitude),
+								longitude: parseFloat(d.longitude),
+								html: html
+							};
+							callback(null, output);
+						});
+					};
+
+					results = async.map(results, formatResult, function(err, results){
+						res.json(results);
+					});
+				});
 			}
 		});
-	};
-
-	/**
-	 * Format the url based on the query tab
-	 * param {string} query - query
-	 * param {string} tab - Query tab (i.e. director or title)
-	 * param {boolean} isAutoComplete - Changes result url based on if querying only for autocomplete results
-	 * return {string} resultUrl - resulting url to be queried
-	 */
-	var setResultUrl = function(query, tab, isAutoComplete){
-		var resultUrl = "";
-		if(tab == "title"){
-			resultUrl = isAutoComplete ? formatAutoCompleteTitleUrl(query) : formatTitleUrl(query);
-		}else{
-			resultUrl = isAutoComplete ? formatAutoCompleteDirectorUrl(query) : formatDirectorUrl(query);
-		}
-		return resultUrl;
-	};
-
-	var formatAutoCompleteTitleUrl = function(query){
-		var startUrl = "?$select=title&$where=LOWER(title) like LOWER('";
-		var endUrl = "%25')&$limit=10&$group=title";
-		var resultUrl = dataSetUrl + startUrl + query + endUrl;
-		return resultUrl;
-	};
-
-	var formatAutoCompleteDirectorUrl = function(query){
-		var startUrl = "?$select=director&$where=LOWER(director) like LOWER('";
-		var endUrl = "%25')&$limit=10&$group=director";
-		var resultUrl = dataSetUrl + startUrl + query + endUrl;
-		return resultUrl;
-	};
-
-	var formatTitleUrl = function(query){
-		var startUrl = "?$select=*&$where=LOWER(title)=LOWER('";
-		var endUrl = "')";
-		return dataSetUrl + startUrl + query + endUrl;
-	};
-
-	var formatDirectorUrl = function(query){
-		var startUrl = "?$select=*&$where=LOWER(director)=LOWER('";
-		var endUrl = "')";
-		return dataSetUrl + startUrl + query + endUrl;
-	};
+	});
 };
