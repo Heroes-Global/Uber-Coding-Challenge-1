@@ -84,19 +84,34 @@ $(document).ready(function(){
 			// Clear all map markers
 			Map.clearMarkers();
 			// Get all movie locations by title then geocode their addresses to place on map
-			getLocations(ui.item._id, tab);
+			getLocations('/search', ui.item._id, tab);
 		}
+	});
+
+	/** Listeners **/
+	
+	$("#search_button").click(function(){
+		var text = $("#search_input").val();
+		var tab = $('.nav-pills .active').attr("value");
+
+		// Clear all map markers
+		Map.clearMarkers();
+
+		// Get all movie locations by title then geocode their addresses to place on map
+		getLocations('/fullsearch', null, tab, text);
 	});
 
 	/** Helpers **/
 
 	/**
 		* Searches for all movie locations given an movie id, or director id
+		* param {string} endpoint - Server endpoint
 		* param {string} id - Movie or direcotr id
 		* param {string} tab - Current tab the search is under (ie. Title or Director)
+		* param {string} title - Search by movie titles, used for clicking search
 		*/
-	var getLocations = function(id, tab) {
-		$.getJSON('/search', {id: id, tab: tab}, function(data){
+	var getLocations = function(endpoint, id, tab, title) {
+		$.getJSON(endpoint, {id: id, tab: tab, title: title}, function(data){
 			console.log("Dataaa", data);
 			if(data.length == 0){
 				// Show help information if no results

@@ -54,8 +54,6 @@ var openDBConnection = function(callback){
 	});
 };
 
-
-
 /* 
  * Opens redis connection and flushes the cache
  * @param {function} callback - callback used in async

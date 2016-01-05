@@ -9,6 +9,57 @@ Things to Note:
 2. Start typing - you can either select something from the autocomplete suggestions or finish typing
 3. Hit search (or alternatively if you click on a suggestion, it will search automatically!)
 
+UPDATE
+--------
+I addressed a lot of my initial concerns after I spent a bit of time revisiting the challenge. 
+
+#### Features
+* Removed a lot of client-side workload. (Precompiled templates, geocoding, formatting results, etc).
+* All data is stored in a database, so there is no dependency on the SF Dataset website
+* Greatly improved the speed of autocomplete suggestions
+* Added images to each movie from [OMDB]
+* Provided some feedback when retrieving no results
+* Added a spinner for visual feedback to know when autocomplete finishes
+
+##### Database
+The database is in MongoDB. I added OMDB movie posters to each movie so it can be rendered on the client. There are three collections: Movies, Directors, and MovieLocations. 
+
+Movies - Mostly from SF Dataset + OMDB movie poster. Extracted out duplicate information to the following two collections.
+
+Directors - Contains a name. This was extracted because it makes sense relationally, and it makes searching for 'directors' easier because we can decouple it from the Movies collection.
+
+MovieLocations - Contains string address from SF Dataset and it's latitude, longitude coordinates parsed from Google's Geocoder api.
+
+##### Redis
+To improve performance, I used Redis to cache search queries. This VASTLY improved real-time search suggestions. Previously it took ~350-1000ms to get search suggestions using the SF Dataset, and now using Redis search results take ~30-280ms.
+
+I precomputed the movies + directors names into redis when the application first starts. The data is formatted as <key='set:query', value=[{movieObjects}]>. 
+
+I got this neat idea from a [rails blog] when I was trying to learn how to use Redis as I haven't had any experience with it until now. 
+
+To illustrate, suppose the movie is 'Alcatraz', redis stores all the movie suggestions for: 'a', 'al', 'alc', 'alca', 'alcat', etc. (with all of them having a unique array of suggestions).
+
+#### Challenges
+
+There were a lot of challenges when I revisited this exercise. The main one that I had trouble with was simply loading + doing pre-computations on the data into the database. The hardest pre-computational step was dealing with rate-limiting from Google's Geocoder API (described below)
+
+I used the async node library to run independent/dependent tasks and then aggregate the results into the db.
+
+Just to illustrate the process, I first make a task that checks to see if the db has already been populated. If not, then it creates it from scratch by the following:
+
+1. Get data from the SF dataset
+2. Save each movie to db
+  1. Simultaneously grab it's image from OMDB and save it when the request finishes
+  2. Simultaneously save its director to the Director collection (because we need to extract it from the movie object at this time).
+3. Save the geocoded location to the MovieLocation collection
+4. After populating the db, populate the redis db
+
+Definitely Step 3 was the hardest challenge of the project, especially because I have not encountered severe rate-limiting. Google's Geocoder can only process so many requests within a day and those request can't be made 'too fast'. 
+
+To combat this, there was a neat feature in Async called 'async.retry' which allowed me retry geocoding (in case the request failed because of rate-limiting) and handle cases where no geocoded address could be parsed. If this was the case and it did fail, Async's 'async.eachSeries' provides a great way of controlling flow and allows me to only save correctly parsed locations.
+
+Overall, I feel pretty satisfied with this. I got rid of a lot of work on the client-side (like geocoding and rendering template windows for the Google map markers). And I'm sure there can be some optimizations as I'm still new to using Redis and Async.
+
 Back-end
 --------
 **Node - Express - Handlebars - Heroku** 
@@ -40,7 +91,7 @@ To get the results, I used the SODA API's SoQL feature to query the database. It
 1. Title - This feature searches for movies by their title. It uses one query for autocomplete (we just need movie names to fill out the suggestions box), and it uses another query to actually get all the movie locations with the name that was chosen (these locations will get placed on the map).
 2. Director - This feature is similiar to title, in the sense that it searches on director names for autocomplete. After a name has been selected it makes a query to grab all the movies that the director has directed and places them on the Map.
 
-TODO
+OLD-TODO
 --------
 * Put dataset in to Database, have a nightly script that gets new data from the dataset
 * Testing
@@ -51,6 +102,8 @@ TODO
 
 Clone the repo, and 'npm install'. Optionally you can add an environment variable SF_DATASET_URL to specify where you want the movie location data to come from.
 
+   [rails blog]: <http://vladigleba.com/blog/2014/05/30/how-to-do-autocomplete-in-rails-using-redis/>
+   [OMDB]: <http://www.omdbapi.com>
    [prompt]: <https://github.com/uber/coding-challenge-tools/blob/master/coding_challenge.md>
    [app]: <https://uber-coding-challenge.herokuapp.com>
    [map.js]: <https://github.com/aaandrew/Uber-Coding-Challenge/blob/master/public/js/map.js>
