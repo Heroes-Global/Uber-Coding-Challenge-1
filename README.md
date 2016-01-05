@@ -9,6 +9,8 @@ Things to Note:
 2. Start typing - you can either select something from the autocomplete suggestions or finish typing
 3. Hit search (or alternatively if you click on a suggestion, it will search automatically!)
 
+![alt tag](https://cloud.githubusercontent.com/assets/5565596/12123308/1b3b40fc-b395-11e5-877c-cb8caa5144ab.png)
+
 UPDATE
 --------
 I addressed a lot of my initial concerns after I spent a bit of time revisiting the challenge. 
